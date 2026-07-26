@@ -1,5 +1,11 @@
 module ORTools
+  class RoutingSolutionTrace
+    private :_prepare
+  end
+
   class RoutingModel
+    private :_finish_solution_trace
+
     def solve(
       solution_limit: nil,
       time_limit: nil,
@@ -22,12 +28,31 @@ module ORTools
       _add_disjunction(indices, penalty, max_cardinality, penalty_cost_behavior)
     end
 
+    def enable_solution_trace(max_samples: 64, sample_interval_ms: 50)
+      options = [max_samples, sample_interval_ms]
+      if @solution_trace_options
+        if @solution_trace_options != options
+          raise ArgumentError, "solution trace is already configured"
+        end
+
+        return @solution_trace
+      end
+
+      @solution_trace = _enable_solution_trace(max_samples, sample_interval_ms)
+      @solution_trace_options = options
+      @solution_trace
+    end
+
     def solve_with_parameters(search_parameters)
-      _solve_with_parameters(search_parameters, !@ruby_callback)
+      solve_with_trace do
+        _solve_with_parameters(search_parameters, !@ruby_callback)
+      end
     end
 
     def solve_from_assignment_with_parameters(assignment, search_parameters)
-      _solve_from_assignment_with_parameters(assignment, search_parameters, !@ruby_callback)
+      solve_with_trace do
+        _solve_from_assignment_with_parameters(assignment, search_parameters, !@ruby_callback)
+      end
     end
 
     def register_unary_transit_callback(callback)
@@ -38,6 +63,21 @@ module ORTools
     def register_transit_callback(callback)
       @ruby_callback = true
       _register_transit_callback(callback)
+    end
+
+    private
+
+    def solve_with_trace
+      return yield unless @solution_trace
+
+      @solution_trace.__send__(:_prepare)
+      solution = nil
+      begin
+        solution = yield
+      ensure
+        _finish_solution_trace(@solution_trace, solution&.objective_value)
+      end
+      solution
     end
   end
 end

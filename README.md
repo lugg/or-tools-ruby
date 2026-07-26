@@ -59,6 +59,7 @@ Routing
 - [Resource Constraints](#resource-constraints)
 - [Penalties and Dropping Visits](#penalties-and-dropping-visits)
 - [Routing Options](#routing-options)
+- [Solution Tracing](#solution-tracing)
 
 Bin Packing
 
@@ -1471,6 +1472,22 @@ routing.solve(
   log_search: true
 )
 ```
+
+### Solution Tracing
+
+```ruby
+trace = routing.enable_solution_trace(
+  max_samples: 64,
+  sample_interval_ms: 50
+)
+
+solution = routing.solve_with_parameters(search_parameters)
+trace.to_h
+```
+
+The trace records first, best, and latest solution objectives and timing,
+solution and improvement counts, total objective improvement, and bounded
+improvement samples. Each solve resets the trace.
 
 ## Bin Packing
 
