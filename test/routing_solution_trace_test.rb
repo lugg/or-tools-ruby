@@ -101,6 +101,28 @@ class RoutingSolutionTraceTest < Minitest::Test
     assert_operator values[:improvement_count], :>, 1
   end
 
+  def test_native_improvement_limit_stops_search
+    baseline_routing = build_routing
+    baseline_trace = baseline_routing.enable_solution_trace
+    baseline_routing.solve_with_parameters(search_parameters(solution_limit: 500))
+
+    routing = build_routing
+    trace = routing.enable_solution_trace
+    solution = routing.solve_with_parameters(
+      search_parameters(
+        solution_limit: 500,
+        improvement_limit_parameters: {
+          improvement_rate_coefficient: 0.01,
+          improvement_rate_solutions_distance: 1
+        }
+      )
+    )
+
+    assert_equal 500, baseline_trace.to_h[:solution_count]
+    assert_operator trace.to_h[:solution_count], :<, 500
+    assert_equal solution.objective_value, trace.to_h[:best_solution_objective]
+  end
+
   def test_resets_for_warm_solves
     routing = build_routing
     trace = routing.enable_solution_trace(
@@ -239,12 +261,13 @@ class RoutingSolutionTraceTest < Minitest::Test
     routing
   end
 
-  def search_parameters(solution_limit: nil, time_limit: nil)
+  def search_parameters(solution_limit: nil, time_limit: nil, improvement_limit_parameters: nil)
     parameters = ORTools.default_routing_search_parameters
     parameters.first_solution_strategy = :path_cheapest_arc
     parameters.local_search_metaheuristic = :guided_local_search
     parameters.solution_limit = solution_limit if solution_limit
     parameters.time_limit = time_limit if time_limit
+    parameters.improvement_limit_parameters = improvement_limit_parameters if improvement_limit_parameters
     parameters
   end
 
