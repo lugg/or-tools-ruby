@@ -1473,6 +1473,15 @@ routing.solve(
 )
 ```
 
+Native improvement-rate stopping is available through search parameters:
+
+```ruby
+search_parameters.improvement_limit_parameters = {
+  improvement_rate_coefficient: 0.01,
+  improvement_rate_solutions_distance: 5
+}
+```
+
 ### Solution Tracing
 
 ```ruby
