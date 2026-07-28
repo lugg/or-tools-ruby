@@ -1,3 +1,7 @@
+## Unreleased
+
+- Added `set_cumul_var_piecewise_linear_cost` to `RoutingDimension`
+
 ## 0.18.0 (2026-07-06)
 
 - Added support for releasing GVL
