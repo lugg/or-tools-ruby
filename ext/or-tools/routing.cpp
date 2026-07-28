@@ -1,8 +1,13 @@
+#include <algorithm>
+#include <memory>
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <ortools/constraint_solver/routing.h>
 #include <ortools/constraint_solver/routing_parameters.h>
+#include <ortools/util/piecewise_linear_function.h>
 #include <rice/rice.hpp>
 #include <rice/stl.hpp>
 
@@ -11,6 +16,7 @@ using operations_research::ConstraintSolverParameters;
 using operations_research::DefaultRoutingSearchParameters;
 using operations_research::FirstSolutionStrategy;
 using operations_research::LocalSearchMetaheuristic;
+using operations_research::PiecewiseLinearFunction;
 using operations_research::RoutingDimension;
 using operations_research::RoutingDisjunctionIndex;
 using operations_research::RoutingIndexManager;
@@ -257,7 +263,39 @@ void init_routing(Rice::Module& m) {
     .define_method("set_cumul_var_soft_lower_bound", &RoutingDimension::SetCumulVarSoftLowerBound)
     .define_method("cumul_var_soft_lower_bound?", &RoutingDimension::HasCumulVarSoftLowerBound)
     .define_method("cumul_var_soft_lower_bound", &RoutingDimension::GetCumulVarSoftLowerBound)
-    .define_method("cumul_var_soft_lower_bound_coefficient", &RoutingDimension::GetCumulVarSoftLowerBoundCoefficient);
+    .define_method("cumul_var_soft_lower_bound_coefficient", &RoutingDimension::GetCumulVarSoftLowerBoundCoefficient)
+    .define_method(
+      "set_cumul_var_piecewise_linear_cost",
+      [](RoutingDimension& self, int64_t index, int64_t initial_level, std::vector<int64_t> breakpoints, std::vector<int64_t> slopes) {
+        if (initial_level < 0) {
+          throw std::invalid_argument("initial_level must be nonnegative");
+        }
+        if (breakpoints.empty()) {
+          throw std::invalid_argument("breakpoints must not be empty");
+        }
+        if (slopes.size() != breakpoints.size() + 1) {
+          throw std::invalid_argument("slopes must contain one more value than breakpoints");
+        }
+        if (std::adjacent_find(
+              breakpoints.begin(),
+              breakpoints.end(),
+              [](int64_t left, int64_t right) { return left >= right; }) != breakpoints.end()) {
+          throw std::invalid_argument("breakpoints must be strictly increasing");
+        }
+        if (std::any_of(slopes.begin(), slopes.end(), [](int64_t slope) { return slope < 0; })) {
+          throw std::invalid_argument("slopes must be nonnegative");
+        }
+
+        std::unique_ptr<PiecewiseLinearFunction> cost(
+          PiecewiseLinearFunction::CreateFullDomainFunction(
+            initial_level,
+            std::move(breakpoints),
+            std::move(slopes)));
+        if (cost->Value(0) < 0) {
+          throw std::invalid_argument("cost must be nonnegative at zero");
+        }
+        self.SetCumulVarPiecewiseLinearCost(index, *cost);
+      });
 
   Rice::define_class_under<RoutingDisjunctionIndex>(m, "RoutingDisjunctionIndex");
 

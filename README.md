@@ -1472,6 +1472,17 @@ routing.solve(
 )
 ```
 
+Piecewise linear costs can be applied to dimension cumul variables:
+
+```ruby
+time_dimension.set_cumul_var_piecewise_linear_cost(
+  routing.end(vehicle_id),
+  0,                  # cost at zero
+  [shift_end, limit], # breakpoints
+  [0, 50, 200]        # one slope per segment
+)
+```
+
 ## Bin Packing
 
 ### The Knapsack Problem
