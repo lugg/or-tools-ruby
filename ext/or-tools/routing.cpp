@@ -1,6 +1,12 @@
+#include <algorithm>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
+#include <absl/time/time.h>
 #include <ortools/constraint_solver/routing.h>
 #include <ortools/constraint_solver/routing_parameters.h>
 #include <rice/rice.hpp>
@@ -22,10 +28,215 @@ using operations_research::RoutingSearchStatus;
 
 using Rice::Array;
 using Rice::Class;
+using Rice::Hash;
 using Rice::Module;
 using Rice::Object;
 using Rice::String;
 using Rice::Symbol;
+
+struct RoutingSolutionTraceState {
+  struct Observation {
+    int64_t elapsed_ms;
+    int64_t objective;
+  };
+
+  RoutingSolutionTraceState(int64_t max_samples, int64_t sample_interval_ms)
+    : max_samples(max_samples), sample_interval_ms(sample_interval_ms) {
+    samples.reserve(static_cast<size_t>(max_samples));
+  }
+
+  void Prepare() {
+    std::lock_guard<std::mutex> lock(mutex);
+    armed = true;
+    started = false;
+    first_solution.reset();
+    best_solution.reset();
+    latest_solution.reset();
+    solution_count = 0;
+    improvement_count = 0;
+    samples.clear();
+    last_improvement_bucket.reset();
+    samples_truncated = false;
+  }
+
+  void Start(absl::Time now) {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (armed && !started) {
+      started_at = now;
+      started = true;
+    }
+  }
+
+  void Record(absl::Time now, int64_t objective) {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (!armed || !started) {
+      return;
+    }
+
+    RecordLocked(now, objective);
+  }
+
+  void Finish(absl::Time now, std::optional<int64_t> objective) {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (!armed) {
+      return;
+    }
+
+    if (objective && (!best_solution || *objective < best_solution->objective)) {
+      if (!started) {
+        started_at = now;
+        started = true;
+      }
+      RecordLocked(now, *objective);
+    }
+    armed = false;
+  }
+
+  Hash ToHash() const {
+    std::optional<Observation> first;
+    std::optional<Observation> best;
+    std::optional<Observation> latest;
+    int64_t solutions;
+    int64_t improvements;
+    std::vector<Observation> sample_snapshot;
+    bool truncated;
+
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      first = first_solution;
+      best = best_solution;
+      latest = latest_solution;
+      solutions = solution_count;
+      improvements = improvement_count;
+      sample_snapshot = samples;
+      truncated = samples_truncated;
+    }
+
+    Hash result;
+    Array sample_values;
+    const auto set_observation = [&result](
+      const char* elapsed_key,
+      const char* objective_key,
+      const std::optional<Observation>& observation) {
+      if (observation) {
+        result[Symbol(elapsed_key)] = observation->elapsed_ms;
+        result[Symbol(objective_key)] = observation->objective;
+      } else {
+        result[Symbol(elapsed_key)] = Object(Qnil);
+        result[Symbol(objective_key)] = Object(Qnil);
+      }
+    };
+
+    for (const Observation& sample : sample_snapshot) {
+      Array value;
+      value.push(sample.elapsed_ms);
+      value.push(sample.objective);
+      sample_values.push(value);
+    }
+
+    set_observation(
+      "first_solution_ms",
+      "first_solution_objective",
+      first);
+    set_observation(
+      "best_solution_ms",
+      "best_solution_objective",
+      best);
+    set_observation(
+      "latest_solution_ms",
+      "latest_solution_objective",
+      latest);
+    result[Symbol("solution_count")] = solutions;
+    result[Symbol("improvement_count")] = improvements;
+    if (first && best) {
+      result[Symbol("objective_improvement")] =
+        first->objective - best->objective;
+    } else {
+      result[Symbol("objective_improvement")] = Object(Qnil);
+    }
+    result[Symbol("samples")] = sample_values;
+    result[Symbol("samples_truncated")] = truncated;
+    return result;
+  }
+
+private:
+  void RecordLocked(absl::Time now, int64_t objective) {
+    const int64_t elapsed_ms =
+      std::max<int64_t>(0, absl::ToInt64Milliseconds(now - started_at));
+    const Observation observation{elapsed_ms, objective};
+    const bool first = !first_solution.has_value();
+    const bool improvement =
+      !best_solution.has_value() || objective < best_solution->objective;
+
+    solution_count++;
+    latest_solution = observation;
+
+    if (first) {
+      first_solution = observation;
+      samples.push_back(observation);
+    } else if (improvement) {
+      improvement_count++;
+    }
+
+    if (improvement) {
+      best_solution = observation;
+
+      if (!first) {
+        const int64_t bucket = elapsed_ms / sample_interval_ms;
+        if (last_improvement_bucket == bucket) {
+          samples.back() = observation;
+        } else if (samples.size() < static_cast<size_t>(max_samples)) {
+          samples.push_back(observation);
+          last_improvement_bucket = bucket;
+        } else {
+          samples_truncated = true;
+        }
+      }
+    }
+  }
+
+  mutable std::mutex mutex;
+  const int64_t max_samples;
+  const int64_t sample_interval_ms;
+  absl::Time started_at;
+  bool armed = false;
+  bool started = false;
+  std::optional<Observation> first_solution;
+  std::optional<Observation> best_solution;
+  std::optional<Observation> latest_solution;
+  int64_t solution_count = 0;
+  int64_t improvement_count = 0;
+  std::vector<Observation> samples;
+  std::optional<int64_t> last_improvement_bucket;
+  bool samples_truncated = false;
+};
+
+class RoutingSolutionTrace {
+public:
+  RoutingSolutionTrace(int64_t max_samples, int64_t sample_interval_ms)
+    : state_(std::make_shared<RoutingSolutionTraceState>(
+        max_samples,
+        sample_interval_ms)) { }
+
+  std::shared_ptr<RoutingSolutionTraceState> state() const {
+    return state_;
+  }
+
+  Hash ToHash() const {
+    return state_->ToHash();
+  }
+
+  void Prepare() {
+    state_->Prepare();
+  }
+
+  void Finish(absl::Time now, std::optional<int64_t> objective) {
+    state_->Finish(now, objective);
+  }
+
+private:
+  std::shared_ptr<RoutingSolutionTraceState> state_;
+};
 
 namespace Rice::detail {
   template<>
@@ -99,6 +310,10 @@ namespace Rice::detail {
 void init_routing(Rice::Module& m) {
   auto rb_cRoutingSearchParameters = Rice::define_class_under<RoutingSearchParameters>(m, "RoutingSearchParameters");
   auto rb_cIntVar = Rice::define_class_under<operations_research::IntVar>(m, "RoutingIntVar");
+
+  Rice::define_class_under<RoutingSolutionTrace>(m, "RoutingSolutionTrace")
+    .define_method("to_h", &RoutingSolutionTrace::ToHash)
+    .define_method("_prepare", &RoutingSolutionTrace::Prepare);
 
   m.define_singleton_function("default_routing_search_parameters", &DefaultRoutingSearchParameters);
 
@@ -428,6 +643,48 @@ void init_routing(Rice::Module& m) {
     .define_method("add_variable_target_to_finalizer", &RoutingModel::AddVariableTargetToFinalizer)
     .define_method("add_weighted_variable_target_to_finalizer", &RoutingModel::AddWeightedVariableTargetToFinalizer)
     .define_method("close_model", &RoutingModel::CloseModel)
+    .define_method(
+      "_enable_solution_trace",
+      [](RoutingModel& self, int64_t max_samples, int64_t sample_interval_ms) {
+        if (max_samples <= 0) {
+          throw std::invalid_argument{"max_samples must be positive"};
+        }
+        if (max_samples > 100000) {
+          throw std::invalid_argument{"max_samples must be at most 100000"};
+        }
+        if (sample_interval_ms <= 0) {
+          throw std::invalid_argument{"sample_interval_ms must be positive"};
+        }
+
+        RoutingSolutionTrace trace(max_samples, sample_interval_ms);
+        std::shared_ptr<RoutingSolutionTraceState> state = trace.state();
+        RoutingModel* model = &self;
+        operations_research::Solver* solver = self.solver();
+
+        // Use the solver clock so trace timing matches OR-Tools time limits.
+        self.AddEnterSearchCallback([state, solver]() {
+          state->Start(solver->Now());
+        });
+        self.AddAtSolutionCallback(
+          [state, model, solver]() {
+            operations_research::IntVar* cost = model->CostVar();
+            const int64_t objective =
+              cost != nullptr && cost->Bound()
+                ? cost->Min()
+                : solver->GetOrCreateLocalSearchState()->ObjectiveMin();
+            state->Record(solver->Now(), objective);
+          },
+          true);
+
+        return trace;
+      })
+    .define_method(
+      "_finish_solution_trace",
+      [](RoutingModel& self,
+         RoutingSolutionTrace& trace,
+         std::optional<int64_t> objective) {
+        trace.Finish(self.solver()->Now(), objective);
+      })
     // solve defined in Ruby
     .define_method(
       "_solve_with_parameters",
