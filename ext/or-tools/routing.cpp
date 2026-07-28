@@ -710,6 +710,9 @@ void init_routing(Rice::Module& m) {
         if (max_samples <= 0) {
           throw std::invalid_argument{"max_samples must be positive"};
         }
+        if (max_samples > 100000) {
+          throw std::invalid_argument{"max_samples must be at most 100000"};
+        }
         if (sample_interval_ms <= 0) {
           throw std::invalid_argument{"sample_interval_ms must be positive"};
         }
