@@ -4,7 +4,13 @@ module ORTools
   end
 
   class RoutingModel
-    private :_finish_solution_trace
+    private :_finish_solution_trace,
+      :_register_unary_transit_callback,
+      :_register_transit_callback,
+      :_solve_with_parameters,
+      :_solve_from_assignment_with_parameters,
+      :_close_model,
+      :_read_assignment_from_routes
 
     def solve(
       solution_limit: nil,
@@ -47,6 +53,14 @@ module ORTools
       solve_with_trace do
         _solve_with_parameters(search_parameters, !@ruby_callback)
       end
+    end
+
+    def close_model
+      _close_model(!@ruby_callback)
+    end
+
+    def read_assignment_from_routes(routes, ignore_inactive_indices)
+      _read_assignment_from_routes(routes, ignore_inactive_indices, !@ruby_callback)
     end
 
     def solve_from_assignment_with_parameters(assignment, search_parameters)
