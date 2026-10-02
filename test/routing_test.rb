@@ -1,4 +1,5 @@
 require_relative "test_helper"
+require "weakref"
 
 class RoutingTest < Minitest::Test
   # https://developers.google.com/optimization/routing/tsp
@@ -907,20 +908,28 @@ class RoutingTest < Minitest::Test
     search_parameters.first_solution_strategy = :path_cheapest_arc
     search_parameters.local_search_metaheuristic = :guided_local_search
     search_parameters.log_search = true
-    assert_nil search_parameters.improvement_limit_parameters
 
-    search_parameters.improvement_limit_parameters = {
-      improvement_rate_coefficient: 0.01,
-      improvement_rate_solutions_distance: 5
-    }
+    assert_equal 0, search_parameters.improvement_limit_parameters.improvement_rate_coefficient
+    search_parameters.improvement_limit_parameters.improvement_rate_coefficient = 0.5
+    assert_equal 0.5, search_parameters.improvement_limit_parameters.improvement_rate_coefficient
 
-    assert_equal(
-      {
-        improvement_rate_coefficient: 0.01,
-        improvement_rate_solutions_distance: 5
-      },
-      search_parameters.improvement_limit_parameters
-    )
+    assert_equal 0, search_parameters.improvement_limit_parameters.improvement_rate_solutions_distance
+    search_parameters.improvement_limit_parameters.improvement_rate_solutions_distance = 1
+    assert_equal 1, search_parameters.improvement_limit_parameters.improvement_rate_solutions_distance
+  end
+
+  def test_improvement_parameters_retain_search_parameters
+    search_parameters = ORTools.default_routing_search_parameters
+    parent = WeakRef.new(search_parameters)
+    limits = search_parameters.improvement_limit_parameters
+    search_parameters = nil
+    3.times { GC.start }
+
+    assert parent.weakref_alive?
+    limits.improvement_rate_coefficient = 0.5
+    limits.improvement_rate_solutions_distance = 1
+    assert_equal 0.5, limits.improvement_rate_coefficient
+    assert_equal 1, limits.improvement_rate_solutions_distance
   end
 
   def test_set_allowed_vehicles_for_index
