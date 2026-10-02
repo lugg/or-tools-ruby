@@ -481,7 +481,7 @@ void init_routing(Rice::Module& m) {
 
         return self.set_local_search_metaheuristic(v);
       })
-    .define_method("improvement_limit_parameters", &RoutingSearchParameters::mutable_improvement_limit_parameters)
+    .define_method("improvement_limit_parameters", &RoutingSearchParameters::mutable_improvement_limit_parameters, Rice::Return().keepAlive())
     .define_method(
       "time_limit=",
       [](RoutingSearchParameters& self, int64_t value) {

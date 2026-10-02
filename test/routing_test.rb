@@ -1,4 +1,5 @@
 require_relative "test_helper"
+require "weakref"
 
 class RoutingTest < Minitest::Test
   # https://developers.google.com/optimization/routing/tsp
@@ -915,6 +916,20 @@ class RoutingTest < Minitest::Test
     assert_equal 0, search_parameters.improvement_limit_parameters.improvement_rate_solutions_distance
     search_parameters.improvement_limit_parameters.improvement_rate_solutions_distance = 1
     assert_equal 1, search_parameters.improvement_limit_parameters.improvement_rate_solutions_distance
+  end
+
+  def test_improvement_parameters_retain_search_parameters
+    search_parameters = ORTools.default_routing_search_parameters
+    parent = WeakRef.new(search_parameters)
+    limits = search_parameters.improvement_limit_parameters
+    search_parameters = nil
+    3.times { GC.start }
+
+    assert parent.weakref_alive?
+    limits.improvement_rate_coefficient = 0.5
+    limits.improvement_rate_solutions_distance = 1
+    assert_equal 0.5, limits.improvement_rate_coefficient
+    assert_equal 1, limits.improvement_rate_solutions_distance
   end
 
   def test_set_allowed_vehicles_for_index
