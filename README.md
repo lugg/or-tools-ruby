@@ -1490,10 +1490,9 @@ A subsequent solve uses the time limit in its own search parameters.
 Native improvement-rate stopping is available through search parameters:
 
 ```ruby
-search_parameters.improvement_limit_parameters = {
-  improvement_rate_coefficient: 0.01,
-  improvement_rate_solutions_distance: 5
-}
+limits = search_parameters.improvement_limit_parameters
+limits.improvement_rate_coefficient = 0.01
+limits.improvement_rate_solutions_distance = 5
 ```
 
 Piecewise linear costs can be applied to dimension cumul variables:

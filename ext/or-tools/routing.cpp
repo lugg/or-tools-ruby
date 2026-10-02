@@ -354,6 +354,12 @@ void init_routing(Rice::Module& m) {
 
   m.define_singleton_function("default_routing_search_parameters", &DefaultRoutingSearchParameters);
 
+  Rice::define_class_under<RoutingSearchParameters::ImprovementSearchLimitParameters>(rb_cRoutingSearchParameters, "ImprovementSearchLimitParameters")
+    .define_method("improvement_rate_coefficient", &RoutingSearchParameters::ImprovementSearchLimitParameters::improvement_rate_coefficient)
+    .define_method("improvement_rate_coefficient=", &RoutingSearchParameters::ImprovementSearchLimitParameters::set_improvement_rate_coefficient)
+    .define_method("improvement_rate_solutions_distance", &RoutingSearchParameters::ImprovementSearchLimitParameters::improvement_rate_solutions_distance)
+    .define_method("improvement_rate_solutions_distance=", &RoutingSearchParameters::ImprovementSearchLimitParameters::set_improvement_rate_solutions_distance);
+
   rb_cRoutingSearchParameters
     .define_method("christofides_use_minimum_matching", &RoutingSearchParameters::christofides_use_minimum_matching)
     .define_method("christofides_use_minimum_matching=", &RoutingSearchParameters::set_christofides_use_minimum_matching)
@@ -475,6 +481,7 @@ void init_routing(Rice::Module& m) {
 
         return self.set_local_search_metaheuristic(v);
       })
+    .define_method("improvement_limit_parameters", &RoutingSearchParameters::mutable_improvement_limit_parameters)
     .define_method(
       "time_limit=",
       [](RoutingSearchParameters& self, int64_t value) {
@@ -484,32 +491,6 @@ void init_routing(Rice::Module& m) {
       "lns_time_limit=",
       [](RoutingSearchParameters& self, int64_t value) {
         self.mutable_lns_time_limit()->set_seconds(value);
-      })
-    .define_method(
-      "improvement_limit_parameters",
-      [](RoutingSearchParameters& self) -> Object {
-        if (!self.has_improvement_limit_parameters()) {
-          return Object(Qnil);
-        }
-
-        const auto& parameters = self.improvement_limit_parameters();
-        Hash result;
-        result[Symbol("improvement_rate_coefficient")] =
-          parameters.improvement_rate_coefficient();
-        result[Symbol("improvement_rate_solutions_distance")] =
-          parameters.improvement_rate_solutions_distance();
-        return result;
-      })
-    .define_method(
-      "improvement_limit_parameters=",
-      [](RoutingSearchParameters& self, Hash value) {
-        const double coefficient =
-          value.get<double>(Symbol("improvement_rate_coefficient"));
-        const int distance =
-          value.get<int>(Symbol("improvement_rate_solutions_distance"));
-        auto* parameters = self.mutable_improvement_limit_parameters();
-        parameters->set_improvement_rate_coefficient(coefficient);
-        parameters->set_improvement_rate_solutions_distance(distance);
       });
 
   Rice::define_class_under<RoutingIndexManager>(m, "RoutingIndexManager")
