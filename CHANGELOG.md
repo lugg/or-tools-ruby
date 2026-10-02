@@ -1,6 +1,12 @@
-## Unreleased
+## 0.18.1 (unreleased)
 
 - Added `set_cumul_var_piecewise_linear_cost` to `RoutingDimension`
+- Added support for breaks for routing
+- Added support for more constraints for routing
+- Added more methods to `ConstraintSolverParameters`
+- Added more methods to `RoutingModelParameters`
+- Added more methods to `RoutingSearchParameters`
+- Added more methods to `SatParameters`
 
 ## 0.18.0 (2026-07-06)
 
