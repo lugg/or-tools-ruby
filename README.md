@@ -1485,6 +1485,9 @@ assignment = routing.read_assignment_from_routes(routes, true)
 The limit is checked cooperatively, so the call can exceed it. Restoration can
 return a valid assignment found before the limit. A `nil` result does not
 distinguish an invalid route from a limit reached before finding a solution.
+Call `routing.check_limit` immediately after restoration to check whether the
+native search limit was reached. It returns a boolean, like Python's
+`routing.CheckLimit()`.
 A subsequent solve uses the time limit in its own search parameters.
 
 Native improvement-rate stopping is available through search parameters:

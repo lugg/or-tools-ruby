@@ -8,6 +8,7 @@ class RoutingTimeLimitTest < Minitest::Test
 
     assert_nil routing.read_assignment_from_routes([[1, 2]], true)
     assert_equal :fail, routing.status
+    assert_equal true, routing.check_limit
 
     routing.update_time_limit(0.5)
     assignment = routing.read_assignment_from_routes([[1, 2]], true)
@@ -15,6 +16,18 @@ class RoutingTimeLimitTest < Minitest::Test
     refute_nil assignment
     assert_equal 4, assignment.objective_value
     assert_equal :success, routing.status
+    assert_equal false, routing.check_limit
+  end
+
+  def test_infeasible_restoration_does_not_cross_limit
+    routing = build_routing
+    transit = routing.register_transit_matrix([[0, 1, 2], [1, 0, 1], [2, 1, 0]])
+    routing.add_dimension(transit, 0, 3, true, "Distance")
+    routing.close_model
+    routing.update_time_limit(1)
+
+    assert_nil routing.read_assignment_from_routes([[1, 2]], true)
+    assert_equal false, routing.check_limit
   end
 
   def test_solve_replaces_restoration_time_limit
