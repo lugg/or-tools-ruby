@@ -1473,6 +1473,20 @@ routing.solve(
 )
 ```
 
+Set a native time limit for route restoration after closing the model. The limit
+is in seconds and accepts fractional values:
+
+```ruby
+routing.close_model
+routing.update_time_limit(0.5)
+assignment = routing.read_assignment_from_routes(routes, true)
+```
+
+The limit is checked cooperatively, so the call can exceed it. Restoration can
+return a valid assignment found before the limit. A `nil` result does not
+distinguish an invalid route from a limit reached before finding a solution.
+A subsequent solve uses the time limit in its own search parameters.
+
 Native improvement-rate stopping is available through search parameters:
 
 ```ruby
