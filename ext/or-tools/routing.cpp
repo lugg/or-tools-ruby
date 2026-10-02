@@ -865,6 +865,7 @@ void init_routing(Rice::Module& m) {
           self.CloseModel();
         }
       })
+    .define_method("check_limit", [](RoutingModel& self) { return self.CheckLimit(); })
     .define_method(
       "update_time_limit",
       [](RoutingModel& self, double seconds) {
