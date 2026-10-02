@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -713,6 +714,14 @@ void init_routing(Rice::Module& m) {
         } else {
           self.CloseModel();
         }
+      })
+    .define_method(
+      "update_time_limit",
+      [](RoutingModel& self, double seconds) {
+        if (!std::isfinite(seconds) || seconds < 0) {
+          throw std::invalid_argument{"time limit must be finite and nonnegative"};
+        }
+        self.UpdateTimeLimit(absl::Seconds(seconds));
       })
     .define_method(
       "_enable_solution_trace",
