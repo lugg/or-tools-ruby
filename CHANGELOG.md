@@ -1,6 +1,12 @@
-## 0.18.1 (unreleased)
+## 0.18.2 (2026-10-27)
 
-- Added `set_cumul_var_piecewise_linear_cost` to `RoutingDimension`
+- Added `add_at_most_one` and `add_exactly_one` methods to `CpModel`
+- Added `objective?` and `clear_objective` methods to `CpModel`
+- Added more methods to `CpSolver`
+- Added more methods to `CpSolverSolutionCallback`
+
+## 0.18.1 (2026-10-02)
+
 - Added support for breaks for routing
 - Added support for more constraints for routing
 - Added more methods to `ConstraintSolverParameters`

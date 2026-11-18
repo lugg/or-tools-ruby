@@ -756,6 +756,16 @@ void init_constraint(Rice::Module& m) {
         return self.AddBoolOr(literals);
       })
     .define_method(
+      "add_at_most_one",
+      [](CpModelBuilder& self, const std::vector<BoolVar>& literals) {
+        return self.AddAtMostOne(literals);
+      })
+    .define_method(
+      "add_exactly_one",
+      [](CpModelBuilder& self, const std::vector<BoolVar>& literals) {
+        return self.AddExactlyOne(literals);
+      })
+    .define_method(
       "add_bool_and",
       [](CpModelBuilder& self, const std::vector<BoolVar>& literals) {
         return self.AddBoolAnd(literals);
@@ -876,6 +886,16 @@ void init_constraint(Rice::Module& m) {
         self.Minimize(expr);
       })
     .define_method(
+      "clear_objective",
+      [](CpModelBuilder& self) {
+        self.ClearObjective();
+      })
+    .define_method(
+      "objective?",
+      [](CpModelBuilder& self) {
+        return self.HasObjective();
+      })
+    .define_method(
       "add_hint",
       [](CpModelBuilder& self, Object var, Object value) {
         if (var.is_a(rb_cBoolVar)) {
@@ -926,9 +946,23 @@ void init_constraint(Rice::Module& m) {
       });
 
   Rice::define_class_under<CpSolverResponse>(m, "CpSolverResponse")
-    .define_method("objective_value", &CpSolverResponse::objective_value)
-    .define_method("num_conflicts", &CpSolverResponse::num_conflicts)
+    .define_method("best_objective_bound", &CpSolverResponse::best_objective_bound)
+    .define_method("deterministic_time", &CpSolverResponse::deterministic_time)
+    .define_method("gap_integral", &CpSolverResponse::gap_integral)
+    .define_method("inner_objective_lower_bound", &CpSolverResponse::inner_objective_lower_bound)
+    .define_method("num_binary_propagations", &CpSolverResponse::num_binary_propagations)
+    .define_method("num_booleans", &CpSolverResponse::num_booleans)
     .define_method("num_branches", &CpSolverResponse::num_branches)
+    .define_method("num_conflicts", &CpSolverResponse::num_conflicts)
+    .define_method("num_fixed_booleans", &CpSolverResponse::num_fixed_booleans)
+    .define_method("num_integer_propagations", &CpSolverResponse::num_integer_propagations)
+    .define_method("num_integers", &CpSolverResponse::num_integers)
+    .define_method("num_lp_iterations", &CpSolverResponse::num_lp_iterations)
+    .define_method("num_restarts", &CpSolverResponse::num_restarts)
+    .define_method("objective_value", &CpSolverResponse::objective_value)
+    .define_method("solution_info", &CpSolverResponse::solution_info)
+    .define_method("solve_log", &CpSolverResponse::solve_log)
+    .define_method("user_time", &CpSolverResponse::user_time)
     .define_method("wall_time", &CpSolverResponse::wall_time)
     .define_method(
       "solution_integer_value",
@@ -957,16 +991,10 @@ void init_constraint(Rice::Module& m) {
         }
       })
     .define_method(
-      "solution_info",
-      [](CpSolverResponse& self) {
-        return self.solution_info();
-      })
-    .define_method(
       "sufficient_assumptions_for_infeasibility",
       [](CpSolverResponse& self) {
-        auto a = Array();
-        auto assumptions = self.sufficient_assumptions_for_infeasibility();
-        for (const auto& v : assumptions) {
+        Array a;
+        for (const auto& v : self.sufficient_assumptions_for_infeasibility()) {
           a.push(v, false);
         }
         return a;
